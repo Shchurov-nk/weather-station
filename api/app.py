@@ -1,7 +1,7 @@
 import logging
 import secrets
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 from pydantic import ValidationError
 
 from config import settings
