@@ -1,6 +1,6 @@
-import os
-
 from psycopg_pool import ConnectionPool
+
+from config import settings
 
 # The pool is not about throughput (one sensor, one request a minute) —
 # it re-establishes connections when Postgres restarts, instead of the
@@ -13,6 +13,6 @@ def get_pool():
     global _pool
     if _pool is None:
         _pool = ConnectionPool(
-            os.environ["DATABASE_URL"], min_size=1, max_size=4, open=True
+            settings.database_url, min_size=1, max_size=4, open=True
         )
     return _pool

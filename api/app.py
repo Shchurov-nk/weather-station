@@ -1,22 +1,48 @@
-from flask import Flask, request, jsonify, render_template
+import logging
+import secrets
 
+from flask import Flask, request, jsonify, render_template
+from pydantic import ValidationError
+
+from config import settings
 from db import get_pool
+from schemas import SensorReading
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
 
+def token_ok(header):
+    if not header or not header.startswith("Bearer "):
+        return False
+    # Constant-time comparison: a plain == leaks the match length via timing.
+    return secrets.compare_digest(header.removeprefix("Bearer "), settings.sensor_token)
+
+
 @app.route('/sensor', methods=['POST'])
 def add_sensor_data():
+    if not token_ok(request.headers.get("Authorization")):
+        return jsonify({"error": "unauthorized"}), 401
+
     try:
-        data = request.get_json()
-        values = (data['temp'], data['hum'], data['pres'])
-        query = "INSERT INTO sensor_readings (temperature, humidity, pressure) VALUES (%s, %s, %s)"
-        # The pool hands out an open connection and commits on clean exit.
+        reading = SensorReading.model_validate(request.get_json(silent=True))
+    except ValidationError as e:
+        return jsonify({"error": "validation failed",
+                        "detail": e.errors(include_url=False)}), 422
+
+    try:
         with get_pool().connection() as conn:
-            conn.execute(query, values)
+            conn.execute(
+                "INSERT INTO sensor_readings (temperature, humidity, pressure) VALUES (%s, %s, %s)",
+                (reading.temp, reading.hum, reading.pres),
+            )
         return jsonify({"status": "success"}), 201
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        # Full traceback to the logs, nothing internal to the client.
+        logger.exception("insert failed")
+        return jsonify({"error": "internal server error"}), 500
 
 
 @app.route('/table')
@@ -31,8 +57,9 @@ def display_data():
         with get_pool().connection() as conn:
             records = conn.execute(query).fetchall()
         return render_template('table.html', records=records)
-    except Exception as e:
-        return f"Error fetching data: {str(e)}", 500
+    except Exception:
+        logger.exception("table query failed")
+        return "internal server error", 500
 
 
 if __name__ == '__main__':
