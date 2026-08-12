@@ -1,0 +1,20 @@
+[project]
+name = "weather-api"
+version = "0.1.0"
+description = "Receives BME280 readings from the ESP32 and stores them in Postgres"
+requires-python = ">=3.13"
+dependencies = [
+    "flask>=3",
+    "gunicorn>=23",
+    "psycopg2-binary>=2.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.8",
+]
+
+[tool.uv]
+# Flat module, not an installable package: uv manages deps only.
+package = false
