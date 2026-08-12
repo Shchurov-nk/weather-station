@@ -1,10 +1,15 @@
+import os
+
 from flask import Flask, request, jsonify, render_template
 import psycopg2
-from config import db_config
+
+# Single source of config that works the same locally, in compose and in CI.
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 app = Flask(__name__)
-@app.route('/sensor', methods=['POST'])
 
+
+@app.route('/sensor', methods=['POST'])
 def add_sensor_data():
     try:
         data = request.get_json()
@@ -13,7 +18,7 @@ def add_sensor_data():
         pres = data['pres']
         values = (temp, hum, pres)
         query = "INSERT INTO sensor_readings (temperature, humidity, pressure) VALUES (%s, %s, %s)"
-        with psycopg2.connect(**db_config) as conn:
+        with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
                 cur.execute(query, values)
             conn.commit()
@@ -30,7 +35,7 @@ def display_data():
             ORDER BY reading_time DESC 
             LIMIT 15
         """
-        with psycopg2.connect(**db_config) as conn:
+        with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
                 cur.execute(query)
                 records = cur.fetchall()
