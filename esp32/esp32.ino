@@ -6,13 +6,9 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
+#include "config.h" // ssid, password, serverURL; copy config_example.h -> config.h
 
-#define BME_SCK 13
-#define BME_MISO 12
-#define BME_MOSI 11
-#define BME_CS 10
-
-Adafruit_BME280 bme; // I2C
+Adafruit_BME280 bme; // I2C, default ESP32 pins: GPIO21 (SDA), GPIO22 (SCL)
 
 unsigned long delayTime;
 
@@ -22,7 +18,7 @@ void setup() {
     Serial.println(F("BME280 test"));
 
     unsigned status;
-    status = bme.begin(0x76); // 0x76 is the default address of esp32
+    status = bme.begin(0x76); // 0x76 is the default I2C address of the BME280 (some boards use 0x77)
     if (!status) {
         Serial.println("Could not find a valid BME280 sensor, check wiring, address, sensor ID!");
         Serial.print("SensorID was: 0x"); Serial.println(bme.sensorID(),16);
@@ -30,7 +26,7 @@ void setup() {
     }
     
     Serial.println("-- Default Test --");
-    delayTime = 6000;
+    delayTime = 60000; // weather changes on a scale of minutes; 60 s is plenty
 
     Serial.println();
 

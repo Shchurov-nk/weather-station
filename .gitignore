@@ -1,1 +1,15 @@
-testing
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# backups pulled from the server
+backups/
+
+# platformio (phase 6)
+.pio/
