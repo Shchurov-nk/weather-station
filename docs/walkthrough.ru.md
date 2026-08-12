@@ -573,3 +573,60 @@ docker compose exec db psql -U dashboard_ro -d weather \
    `platformio.ini` (та же идея, что uv.lock), reconnect, ring buffer.
 4. **CI** — GitHub Actions: ruff + pytest на каждый push; позже — тот же
    `psql -f` цикл миграций против чистого Postgres как проверка схемы.
+
+---
+
+## 15. Темы для изучения — карта пробелов
+
+Каждая строка проекта опирается на какую-то область знаний. Здесь они
+собраны в одном месте: **что** изучить, **зачем** (и где это стреляет в
+проекте), и с чего начать. Порядок внутри блоков — от необходимого к
+углублению; колонка «глава» отсылает к этому документу.
+
+### Уровень 1 — нужно уже сейчас, чтобы уверенно владеть тем, что есть
+
+| Тема | Зачем и где стреляет | Глава | С чего начать |
+|---|---|---|---|
+| Docker: образы, слои, кэш | Почему зависимости ставятся до `COPY . .`; почему правка кода не тянет переустановку пакетов | 2, 5 | docs.docker.com → «Docker concepts», потом просто читать вывод `docker build` |
+| Volumes vs bind mounts | `pgdata:` против `./db/migrations:...` — два разных механизма в одном файле; что убивает `down -v` | 2, 6 | docs.docker.com → «Storage»; упражнение 5 из главы 13 |
+| Сети Docker/Compose | Почему `db:5432` резолвится, а `localhost:5432` из контейнера — это сам контейнер, а не хост | 2, 6 | docs.docker.com → «Networking»; поиграть: `docker compose exec api getent hosts db` |
+| Переменные окружения и процессы | Вся конфигурация проекта на этом; почему у каждого сервиса свой список | 4, 6 | Конспект «The Twelve-Factor App» (12factor.net) — главы Config и Logs |
+| HTTP: методы, статус-коды, заголовки | 401 vs 422 vs 500 — это язык, на котором API разговаривает; заголовок Authorization | 9 | MDN → «HTTP» (обзорные статьи); разглядывать `curl -v` |
+| SQL/Postgres: транзакции | `--single-transaction` в раннере миграций — «всё или ничего»; авто-commit в `with pool.connection()` | 7, 8 | postgresql.org/docs → «Tutorial» гл. 3; книга не нужна |
+| Роли и привилегии Postgres | `dashboard_ro`, GRANT/`ALTER DEFAULT PRIVILEGES`, почему psql внутри контейнера пускает без пароля (peer/trust auth) | 6, 7 | postgresql.org/docs → «Database Roles», «Privileges» |
+| bash для скриптов | `set -euo pipefail`, кавычки, `$$` в compose — раннер миграций и backup.sh написаны на этом | 6, 7 | Любой разбор «bash strict mode»; читать свои же db/*.sh построчно |
+
+### Уровень 2 — понадобится в ближайших фазах (VPS, дашборд, прошивка)
+
+| Тема | Зачем и где стреляет | Глава | С чего начать |
+|---|---|---|---|
+| TLS и PKI: сертификаты, цепочки, CA | Весь транспорт ESP32→VPS; чем leaf отличается от корня, что проверяет `setCACert`, зачем NTP | 10 | Статья «How HTTPS works» (howhttps.works); потом letsencrypt.org → «How It Works» |
+| SSH: ключи, агент, sshd_config | Runbook §1; почему ключи убивают брутфорс; что такое authorized_keys | 11 | `man ssh`, runbook §1 с объяснениями |
+| Linux-файрвол концептуально | ufw в runbook; почему Docker публикует порты «мимо» ufw | 11 | Обзор «ufw basics»; глубже (iptables/nftables) — только по желанию |
+| systemd и cron | Автозапуск Docker на VPS, cron для backup.sh | 11 | `man 5 crontab`; systemd — пока хватает `systemctl status/restart` |
+| pg_dump / pg_restore | Фаза 4 целиком; заодно путь апгрейда Postgres 17→18 | 11 | postgresql.org/docs → «Backup and Restore» |
+| SQL для временных рядов | Дашборд: `date_trunc`+`avg`, оконные функции; агрегируй в БД, а не в pandas | 14 | postgresql.org/docs → «Window Functions»; попробовать на seed-данных |
+| WSGI и процессная модель gunicorn | Что такое воркер, почему их 2, что общего/раздельного у процессов (спойлер: пул соединений — у каждого свой) | 5, 8 | docs.gunicorn.org → «Design» (короткая) |
+| pytest: фикстуры и моки | Тесты API; как `mock.patch.object` подменяет `get_pool`; границы юнит- vs интеграционных тестов | 9 | docs.pytest.org → «Fixtures»; перечитать api/tests с этим знанием |
+
+### Уровень 3 — для глубины, без спешки
+
+| Тема | Зачем | С чего начать |
+|---|---|---|
+| Как контейнеры устроены внутри (namespaces, cgroups) | Понять, почему контейнер — это процесс, а не «лёгкая VM» | Статья «Containers from scratch»; `docker top`, `ps` на хосте |
+| Индексы и планы запросов | Когда данных станет много: `EXPLAIN ANALYZE`, почему B-tree по времени работает | postgresql.org/docs → «Indexes»; use-the-index-luke.com |
+| MVCC и VACUUM | Что Postgres делает под капотом с версиями строк | postgresql.org/docs → «Concurrency Control» |
+| ACME-протокол | Как именно Caddy получает сертификат (HTTP-01 challenge на порту 80) | letsencrypt.org → «Challenge Types» |
+| Timing attacks и сравнение секретов | Почему `compare_digest`, а не `==` | Пост «timing attack string comparison» + глава 9 |
+| Многоступенчатые (multi-stage) Docker-сборки | Следующий шаг эволюции Dockerfile, когда появятся компилируемые зависимости | docs.docker.com → «Multi-stage builds» |
+| GitHub Actions | Фаза 7: workflow, jobs, service containers | docs.github.com → «Actions / Quickstart» |
+| I2C против SPI; NTP | Почему у BME280 адрес 0x76 и два провода данных; откуда ESP32 берёт время | Даташит BME280 (раздел interfaces); статья «How NTP works» |
+| Кольцевой буфер | Фаза 6: структура данных для «дослать после обрыва» | Любая статья «ring buffer»; реализация на C — хорошее упражнение |
+
+### Как этим пользоваться
+
+Не читать подряд. Рабочая схема: берёте следующий шаг из
+[roadmap.ru.md](roadmap.ru.md) → смотрите, какие темы уровня 2 он трогает →
+закрываете ровно их. Уровень 1 стоит пройти весь в ближайшие недели — это
+общий фундамент, на котором стоит уже написанное. Уровень 3 — по мере
+любопытства; ничего в проекте не сломается, если отложить.
