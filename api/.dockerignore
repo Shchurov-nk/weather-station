@@ -1,0 +1,7 @@
+# Never let secrets or local junk into the build context / image layers.
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+tests/

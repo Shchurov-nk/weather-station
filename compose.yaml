@@ -1,0 +1,60 @@
+# The whole station as one stack. Only caddy publishes ports; api and db
+# talk over the internal compose network. Each service gets an explicit
+# environment: list (least privilege) instead of a shared env_file.
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Let's Encrypt certificates live in caddy_data. Without the volume
+      # every container recreation would hit LE again -> rate limit.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      SENSOR_TOKEN: ${SENSOR_TOKEN}
+    depends_on:
+      db:
+        # Orders startup only; if db restarts later, the api's connection
+        # pool has to survive that on its own.
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      DASHBOARD_RO_PASSWORD: ${DASHBOARD_RO_PASSWORD}
+    volumes:
+      # Data outlives the container: `down` keeps it, `down -v` DESTROYS it.
+      - pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/migrations:ro
+      - ./db/apply_migrations.sh:/usr/local/bin/apply_migrations:ro
+      # Runs only when the data volume is empty (first boot).
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # $$ so compose passes a literal $ to the container's shell.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
