@@ -20,6 +20,10 @@ services:
       - api
 
   api:
+    # CI builds and pushes this image; the VPS only pulls it (scripts/deploy.sh),
+    # so a 1 GB server never builds. Local dev still builds: `up -d --build`.
+    # API_TAG pins an older sha-<short> tag to roll back: see docs/vps-runbook.md.
+    image: ghcr.io/shchurov-nk/weather-station-api:${API_TAG:-latest}
     build: ./api
     restart: unless-stopped
     environment:

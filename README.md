@@ -12,12 +12,14 @@ reproducible from a clean `git clone`.
 | Service | Image / build | Published ports | Role |
 |---|---|---|---|
 | `caddy` | `caddy:2` | 80, 443 | TLS termination, the only public entry point |
-| `api` | build `./api` | none | Flask + gunicorn: `POST /sensor`, `GET /table` |
+| `api` | build `./api` locally, GHCR image on the VPS | none | Flask + gunicorn: `POST /sensor`, `GET /table` |
 | `db` | `postgres:17` | none | storage on a named volume, schema from `db/init.sql` |
 
 CI (GitHub Actions, [ci.yml](.github/workflows/ci.yml)): every push and PR
 runs ruff + pytest and builds the Docker image; pushes to `main` also publish
-it to GHCR as `ghcr.io/shchurov-nk/weather-station-api`.
+it to GHCR as `ghcr.io/shchurov-nk/weather-station-api` (`latest` + `sha-<short>`).
+The VPS never builds: `scripts/deploy.sh` pulls that image and restarts the
+stack. `API_TAG` in `.env` pins an older tag to roll back.
 
 ## Quickstart (local)
 

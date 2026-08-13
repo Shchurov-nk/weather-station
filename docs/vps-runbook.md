@@ -137,7 +137,25 @@ curl -i https://<name>.duckdns.org/sensor -X POST \
 # expect: HTTP/2 201; then https://<name>.duckdns.org/table shows the row
 ```
 
-Updates later: `git pull && docker compose up -d --build` in `/opt/weather-station`.
+Updates later are not built here — CI publishes the image, the VPS pulls it:
+
+```bash
+# [vps, as deploy]
+cd /opt/weather-station && git pull --ff-only && ./scripts/deploy.sh
+```
+
+That is exactly what the `deploy` job in CI runs over ssh after a push to main.
+The GHCR package must be **public**, otherwise `pull` gets a 401.
+
+Roll back to an older build (tags are `sha-<short>`, one per push to main —
+see the packages page on GitHub):
+
+```bash
+# [vps, as deploy]
+sed -i 's/^API_TAG=.*/API_TAG=sha-abc1234/' .env
+docker compose pull api         # pull first: with a build: section, a missing
+docker compose up -d api        # image would otherwise be BUILT on the VPS
+```
 
 ## 7. External check (phase 3 acceptance)
 
