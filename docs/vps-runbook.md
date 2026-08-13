@@ -20,6 +20,12 @@ Swapping in a bought domain later is a one-line change of `DOMAIN` in `.env`.
 *Why:* password brute-forcing starts within minutes of a VPS going live; keys
 kill that whole class of attacks. A separate user means no routine work as root.
 
+**Shortcut for a fresh machine:** §1–5 are automated in
+[`infra/cloud-init.yaml`](../infra/cloud-init.yaml) — paste it into the
+provider's "user data" field when creating the VPS and skip straight to §6.
+The manual steps below stay as documentation, and for servers already running
+(cloud-init only fires on first boot).
+
 ```bash
 # [home]
 ssh root@193.124.115.214
