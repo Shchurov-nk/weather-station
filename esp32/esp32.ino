@@ -4,9 +4,11 @@
 #include <Adafruit_BME280.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
-#include "config.h" // ssid, password, serverURL; copy config_example.h -> config.h
+#include "config.h" // ssid, password, serverURL, sensorToken; copy config_example.h -> config.h
+#include "certs.h"  // LE_ROOTS: Let's Encrypt ISRG Root X1 + X2
 
 Adafruit_BME280 bme; // I2C, default ESP32 pins: GPIO21 (SDA), GPIO22 (SCL)
 
@@ -38,6 +40,15 @@ void setup() {
         Serial.print(".");
     }
   Serial.println(" Connected!");
+
+    // TLS cert validation needs the current time; block until NTP sets it
+    configTime(0, 0, "pool.ntp.org");
+    Serial.print("Syncing time");
+    while (time(nullptr) < 1000000000) { // anything past 2001 means NTP responded
+        delay(200);
+        Serial.print(".");
+    }
+    Serial.println(" Synced!");
 }
 
 void loop() { 
@@ -58,12 +69,16 @@ void printValues() {
     String jsonPayload;
     serializeJson(doc, jsonPayload);
 
+    WiFiClientSecure client;
+    client.setCACert(LE_ROOTS);
     HTTPClient http;
-    http.begin(serverURL);
+    http.begin(client, serverURL);
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("Authorization", String("Bearer ") + sensorToken);
     int httpCode = http.POST(jsonPayload);
     String response = http.getString();
     http.end();
 
     Serial.printf("Response: %d, %s\n", httpCode, response.c_str());
+    if (httpCode < 0) Serial.printf("HTTP error: %s\n", http.errorToString(httpCode).c_str());
   }

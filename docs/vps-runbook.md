@@ -245,6 +245,11 @@ stops being a single-person one.
 
 ## 9. Firmware bridge patch (data starts flowing)
 
+> Done (2026-08-14) — implemented in `esp32/esp32.ino` + `esp32/certs.h`.
+> The bundle pins four ISRG roots: X1 + X2 as planned below, plus the next-gen
+> Root YE + YR (introduced 2025-09, already served in chains via cross-signs),
+> so the device survives LE dropping the cross-signs later.
+
 Minimal change so the ESP32 talks to the VPS over the public internet; the
 full PlatformIO rework stays in phase 6. Three ideas:
 

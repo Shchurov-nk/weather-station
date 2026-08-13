@@ -67,7 +67,9 @@ uv run ruff check
 `esp32/esp32.ino` (Arduino IDE for now; PlatformIO planned). Copy
 `esp32/config_example.h` to `config.h` and fill in WiFi credentials, the
 server URL and the sensor token. BME280 is on I2C: GPIO21 (SDA), GPIO22 (SCL),
-address 0x76.
+address 0x76. TLS roots are pinned in `esp32/certs.h` (ISRG Root X1/X2 plus
+the next-gen Root YE/YR, valid to 2035–2045); certificate renewals need no
+firmware action.
 
 ## History
 
