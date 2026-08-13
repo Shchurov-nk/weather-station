@@ -1,8 +1,14 @@
 # VPS runbook — server setup (phase 3) and backups (phase 4)
 
-Target: Ubuntu 24.04 VPS at `193.124.115.214`, ~1 GB RAM.
-The existing key `~/.ssh/id_ed25519` is used throughout — no new keys.
+Target: Ubuntu 24.04 VPS at `193.124.115.214`, ~1 GB RAM. Rebuilding on another
+machine? That IP appears throughout — substitute yours everywhere, including
+the `deploy` job in [`ci.yml`](../.github/workflows/ci.yml).
+Two keys are involved: your personal `~/.ssh/id_ed25519` for admin work, and a
+separate `~/.ssh/ci_deploy` that only GitHub Actions uses (§8).
 Run each block where indicated: **[home]** = your machine, **[vps]** = over SSH.
+
+Reproducing the whole project from scratch: §0–§7 give a running server, §8
+wires up automatic deploys, §9 the sensor, §10 backups.
 
 ## 0. Domain (DuckDNS)
 
@@ -118,7 +124,10 @@ cp .env.example .env
 chmod 600 .env
 nano .env   # DOMAIN=<name>.duckdns.org, real passwords,
             # SENSOR_TOKEN=$(openssl rand -hex 32)
-docker compose up -d --build
+# Pull, don't build: the api image comes from GHCR (published by CI on every
+# push to main). Building here would take minutes and can OOM on 1 GB.
+docker compose pull
+docker compose up -d
 docker compose ps          # all services Up, db healthy
 docker compose logs caddy  # look for "certificate obtained successfully"
 ```
@@ -165,7 +174,76 @@ nmap -p 1-1000 193.124.115.214
 # open: 22, 80, 443 — nothing else
 ```
 
-## 8. Firmware bridge patch (data starts flowing)
+## 8. Continuous deployment (GitHub Actions → VPS)
+
+After this section, a push to `main` deploys itself: CI runs the tests, publishes
+the image to GHCR, then runs `scripts/deploy.sh` here over SSH. One-time setup,
+except where noted "per server".
+
+**a. Make the GHCR package public.** `github.com/users/<you>/packages/container/
+weather-station-api/settings` → Change visibility → Public. Otherwise the VPS
+gets a 401 on pull, and the alternative is storing a PAT on the server — another
+secret to rotate.
+
+**b. A separate key for CI.** Never hand GitHub your personal key: a leaked CI
+secret must not open everything that key opens.
+
+```bash
+# [home]
+ssh-keygen -t ed25519 -f ~/.ssh/ci_deploy -C ci@weather-station -N ""
+```
+
+No passphrase on purpose — there is nobody to type it in CI. The protection is
+that the key lives in a GitHub secret and is crippled server-side in the next step.
+
+**c. Install it, restricted to one command** (per server):
+
+```bash
+# [home]
+{ echo; printf 'command="cd /opt/weather-station && git pull --ff-only && ./scripts/deploy.sh",restrict '; cat ~/.ssh/ci_deploy.pub; } \
+  | ssh deploy@193.124.115.214 'cat >> ~/.ssh/authorized_keys'
+```
+
+`command=` replaces whatever the client sends, `restrict` kills port/agent
+forwarding and pty. *Why it matters:* `deploy` is in the `docker` group, which
+is root on this box — unrestricted, this key would be a root shell in a CI
+secret. Result: two lines in `authorized_keys`, your personal key plain and the
+CI key prefixed. Do not leave an unprefixed copy of the CI key — SSH uses the
+first matching line, so a plain duplicate silently defeats the restriction.
+
+**d. Two repository secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Value | Per server? |
+|---|---|---|
+| `VPS_SSH_KEY` | `cat ~/.ssh/ci_deploy` — the private half, `BEGIN`/`END` lines included | no |
+| `VPS_KNOWN_HOSTS` | `ssh-keyscan -t ed25519 193.124.115.214` | **yes** — a new machine has a new host key |
+
+`VPS_KNOWN_HOSTS` is what makes CI verify *which* server it is talking to;
+without it the job would have to accept any host that answers on that IP, and a
+MITM would collect the key. Verify before pasting — `ssh-keyscan` trusts
+whoever replies:
+
+```bash
+# [home]
+ssh-keygen -lf <(ssh-keyscan -t ed25519 193.124.115.214 2>/dev/null)
+ssh-keygen -l -F 193.124.115.214    # what your machine recorded on first login
+# the SHA256 fingerprints must match
+```
+
+**e. Acceptance.** Push anything to `main`; the `deploy` job turns green, and:
+
+```bash
+# [vps]
+docker compose images api   # digest matches the newest package on GHCR
+```
+
+Note the trade-off you are accepting: a push to `main` reaches production in
+about three minutes with no review. The smoke test in `deploy.sh` fails the job
+if the site stops answering, and `API_TAG` (§6) rolls back to any `sha-<short>`
+build. Branch protection with PR-only merges is the real fix when the project
+stops being a single-person one.
+
+## 9. Firmware bridge patch (data starts flowing)
 
 Minimal change so the ESP32 talks to the VPS over the public internet; the
 full PlatformIO rework stays in phase 6. Three ideas:
@@ -215,7 +293,7 @@ Root PEMs: <https://letsencrypt.org/certificates/> — "ISRG Root X1" and
 Acceptance for the whole phase: a row from the real sensor appears in
 `https://<name>.duckdns.org/table`.
 
-## 9. Backups (phase 4)
+## 10. Backups (phase 4)
 
 `scripts/backup.sh` is in the repo. On the VPS:
 

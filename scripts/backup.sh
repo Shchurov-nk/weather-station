@@ -1,7 +1,7 @@
 #!/bin/bash
 # Nightly Postgres dump. Cron on the VPS (as deploy):
 #   10 2 * * * /opt/weather-station/scripts/backup.sh >> /home/deploy/backup.log 2>&1
-# The off-VPS copy is PULLED from home — see docs/vps-runbook.md §9.
+# The off-VPS copy is PULLED from home — see docs/vps-runbook.md §10.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."   # repo root, where compose.yaml lives
