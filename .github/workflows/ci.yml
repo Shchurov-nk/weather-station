@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - run: uv sync --frozen
+      - run: uv run pytest -q
+
+  # Boots the real compose db service on an empty volume, exactly like prod:
+  # image init -> bootstrap -> migrations. A bare postgres service container
+  # would miss the dashboard_ro role that db/init/01_bootstrap.sh creates.
+  migrations:
+    runs-on: ubuntu-latest
+    # Throwaway values; compose interpolates these instead of a .env file.
+    env:
+      DOMAIN: localhost
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ci
+      POSTGRES_DB: ci
+      DASHBOARD_RO_PASSWORD: ci
+      SENSOR_TOKEN: ci
+    steps:
+      - uses: actions/checkout@v7
+      # First boot: init scripts apply every migration.
+      - run: docker compose up -d --wait db
+      # The healthcheck probes the unix socket, which the temp initdb server
+      # also answers; TCP comes up only after init finishes.
+      - run: timeout 60 docker compose exec -T db sh -c 'until pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do sleep 1; done'
+      - name: re-run is a no-op (idempotence)
+        run: |
+          out=$(docker compose exec -T db apply_migrations)
+          echo "$out"
+          ! echo "$out" | grep -q '^apply'
+      - name: every migration file is recorded
+        run: |
+          applied=$(docker compose exec -T db sh -c 'psql -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT count(*) FROM schema_migrations"')
+          files=$(ls db/migrations/*.sql | wc -l)
+          echo "applied=$applied files=$files"
+          test "$applied" -eq "$files"
+      - if: failure()
+        run: docker compose logs db
+
+  # The Dockerfile is a deploy artifact; catch uv.lock drift (--frozen) early.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build ./api
