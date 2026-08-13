@@ -18,7 +18,8 @@ docker compose ps
 # before uvicorn accepts connections.
 DOMAIN=$(grep -E '^DOMAIN=' .env | cut -d= -f2-)
 for _ in $(seq 30); do
-    if curl -fsS --max-time 5 "https://${DOMAIN}/table" > /dev/null; then
+    # No -S: an early 502 is expected, only the final verdict is worth printing.
+    if curl -fs --max-time 5 "https://${DOMAIN}/table" > /dev/null; then
         echo "smoke OK"
         # Old api image layers add up fast on a small disk.
         docker image prune -f
