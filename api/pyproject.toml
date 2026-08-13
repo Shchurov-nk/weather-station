@@ -21,3 +21,10 @@ dev = [
 [tool.uv]
 # Flat module, not an installable package: uv manages deps only.
 package = false
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+# Import sorting (isort) is not in ruff's default select.
+extend-select = ["I"]
