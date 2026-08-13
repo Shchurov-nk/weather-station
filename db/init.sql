@@ -1,4 +1,6 @@
--- Reconstructed schema (the original was lost with the laptop).
+-- Applied automatically by the postgres image on FIRST boot only
+-- (when the pgdata volume is empty). See docker-entrypoint-initdb.d.
+--
 -- CHECK bounds are the BME280 datasheet operating range, not climate
 -- expectations: they catch garbage (0 on I2C failure, raw Pa ~101325)
 -- without rejecting honest readings, e.g. ~900 hPa station pressure
