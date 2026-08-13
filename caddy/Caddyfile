@@ -2,16 +2,5 @@
 # internal CA (curl -k locally); DOMAIN=your.domain on the VPS -> Caddy
 # obtains and renews Let's Encrypt certificates automatically.
 {$DOMAIN} {
-	handle /sensor* {
-		reverse_proxy api:8000
-	}
-
-	handle /table* {
-		reverse_proxy api:8000
-	}
-
-	# Streamlit dashboard takes over the root in phase 5.
-	handle {
-		respond "weather-station" 404
-	}
+	reverse_proxy api:8000
 }
