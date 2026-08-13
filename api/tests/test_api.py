@@ -16,9 +16,9 @@ def client():
 
 
 @pytest.fixture()
-def fake_pool():
-    with mock.patch.object(app_module, "get_pool") as gp:
-        yield gp.return_value
+def fake_db():
+    with mock.patch.object(app_module, "get_conn") as gc:
+        yield gc
 
 
 def test_sensor_without_token_is_401(client):
@@ -30,33 +30,33 @@ def test_sensor_with_wrong_token_is_401(client):
     assert r.status_code == 401
 
 
-def test_sensor_garbage_type_is_422_and_skips_db(client, fake_pool):
+def test_sensor_garbage_type_is_422_and_skips_db(client, fake_db):
     r = client.post("/sensor", json={**VALID, "temp": "banana"}, headers=AUTH)
     assert r.status_code == 422
-    fake_pool.connection.assert_not_called()
+    fake_db.assert_not_called()
 
 
-def test_sensor_out_of_range_is_422(client, fake_pool):
+def test_sensor_out_of_range_is_422(client, fake_db):
     r = client.post("/sensor", json={**VALID, "hum": 150}, headers=AUTH)
     assert r.status_code == 422
-    fake_pool.connection.assert_not_called()
+    fake_db.assert_not_called()
 
 
-def test_sensor_invalid_json_is_422(client, fake_pool):
+def test_sensor_invalid_json_is_422(client, fake_db):
     r = client.post("/sensor", data="not json",
                     headers={**AUTH, "Content-Type": "application/json"})
     assert r.status_code == 422
 
 
-def test_sensor_valid_is_201(client, fake_pool):
+def test_sensor_valid_is_201(client, fake_db):
     r = client.post("/sensor", json=VALID, headers=AUTH)
     assert r.status_code == 201
-    conn = fake_pool.connection.return_value.__enter__.return_value
+    conn = fake_db.return_value.__enter__.return_value
     assert conn.execute.called
 
 
-def test_db_error_does_not_leak_details(client, fake_pool):
-    fake_pool.connection.side_effect = RuntimeError("secret internal detail")
+def test_db_error_does_not_leak_details(client, fake_db):
+    fake_db.side_effect = RuntimeError("secret internal detail")
     r = client.post("/sensor", json=VALID, headers=AUTH)
     assert r.status_code == 500
     assert b"secret internal detail" not in r.data

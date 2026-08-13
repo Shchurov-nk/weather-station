@@ -1,11 +1,6 @@
-from pydantic_settings import BaseSettings
+import os
 
-
-class Settings(BaseSettings):
-    """Read from env vars; missing ones fail at startup, not on the first request."""
-
-    database_url: str
-    sensor_token: str
-
-
-settings = Settings()
+# Read at import time: a missing variable fails at startup,
+# not on the first request.
+DATABASE_URL = os.environ["DATABASE_URL"]
+SENSOR_TOKEN = os.environ["SENSOR_TOKEN"]

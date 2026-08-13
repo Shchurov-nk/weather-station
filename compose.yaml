@@ -27,8 +27,8 @@ services:
       SENSOR_TOKEN: ${SENSOR_TOKEN}
     depends_on:
       db:
-        # Orders startup only; if db restarts later, the api's connection
-        # pool has to survive that on its own.
+        # Orders startup only; if db restarts later, the api reconnects
+        # on the next request (fresh connection per request).
         condition: service_healthy
 
   db:

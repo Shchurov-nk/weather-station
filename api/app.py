@@ -4,8 +4,8 @@ import secrets
 from flask import Flask, jsonify, render_template, request
 from pydantic import ValidationError
 
-from config import settings
-from db import get_pool
+from config import SENSOR_TOKEN
+from db import get_conn
 from schemas import SensorReading
 
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +18,7 @@ def token_ok(header):
     if not header or not header.startswith("Bearer "):
         return False
     # Constant-time comparison: a plain == leaks the match length via timing.
-    return secrets.compare_digest(header.removeprefix("Bearer "), settings.sensor_token)
+    return secrets.compare_digest(header.removeprefix("Bearer "), SENSOR_TOKEN)
 
 
 @app.route('/sensor', methods=['POST'])
@@ -33,7 +33,7 @@ def add_sensor_data():
                         "detail": e.errors(include_url=False)}), 422
 
     try:
-        with get_pool().connection() as conn:
+        with get_conn() as conn:
             conn.execute(
                 "INSERT INTO sensor_readings (temperature, humidity, pressure) VALUES (%s, %s, %s)",
                 (reading.temp, reading.hum, reading.pres),
@@ -54,7 +54,7 @@ def display_data():
             ORDER BY reading_time DESC
             LIMIT 15
         """
-        with get_pool().connection() as conn:
+        with get_conn() as conn:
             records = conn.execute(query).fetchall()
         return render_template('table.html', records=records)
     except Exception:
