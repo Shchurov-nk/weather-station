@@ -28,7 +28,7 @@ void setup() {
     }
     
     Serial.println("-- Default Test --");
-    delayTime = 60000; // weather changes on a scale of minutes; 60 s is plenty
+    delayTime = 6000;
 
     Serial.println();
 
