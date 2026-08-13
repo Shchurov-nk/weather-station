@@ -302,6 +302,8 @@ every 60 s.
 ### 9.1 Flashing from the Linux CLI (how it was actually done)
 
 Arduino IDE is not required; the whole cycle ran headless with `arduino-cli`.
+The everyday cycle (compile → upload → serial monitor) is wrapped in
+`scripts/flash.sh`; the one-time toolchain setup below is its prerequisite.
 Reproducible steps on the workstation:
 
 ```bash
