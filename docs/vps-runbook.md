@@ -296,7 +296,103 @@ Root PEMs: <https://letsencrypt.org/certificates/> — "ISRG Root X1" and
 "ISRG Root X2", self-signed PEM versions.
 
 Acceptance for the whole phase: a row from the real sensor appears in
-`https://<name>.duckdns.org/table`.
+`https://<name>.duckdns.org/table`. ✔ Passed 2026-08-14 — real readings arrive
+every 60 s.
+
+### 9.1 Flashing from the Linux CLI (how it was actually done)
+
+Arduino IDE is not required; the whole cycle ran headless with `arduino-cli`.
+Reproducible steps on the workstation:
+
+```bash
+# [workstation]
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+    | BINDIR=~/.local/bin sh
+arduino-cli config init
+arduino-cli config set board_manager.additional_urls \
+    https://espressif.github.io/arduino-esp32/package_esp32_index.json
+arduino-cli core update-index && arduino-cli core install esp32:esp32
+arduino-cli compile --fqbn esp32:esp32:esp32 esp32/
+arduino-cli upload -p /dev/ttyUSB0 --fqbn esp32:esp32:esp32 esp32/
+```
+
+Snags hit on the way, and the workarounds:
+
+- **`downloads.arduino.cc` returns 403 on this network** (blocked region/CDN;
+  curl with a browser User-Agent gets 403 too). That server hosts the official
+  library index and the "builtin" tools, so `lib install <name>` and parts of
+  the build break. The ESP32 board index lives on `espressif.github.io` and
+  works fine — the core itself installs normally.
+- **Libraries** — install straight from git instead of the index:
+
+  ```bash
+  arduino-cli config set library.enable_unsafe_install true
+  arduino-cli lib install --git-url \
+      https://github.com/adafruit/Adafruit_Sensor.git \
+      https://github.com/adafruit/Adafruit_BME280_Library.git \
+      https://github.com/adafruit/Adafruit_BusIO.git \
+      https://github.com/bblanchon/ArduinoJson.git
+  ```
+
+- **`ctags` (builtin tool) can't download** → build dies with
+  `fork/exec {runtime.tools.ctags.path}/ctags: no such file`. Fetch it from
+  the GitHub release and drop it where the CLI expects builtin tools:
+
+  ```bash
+  curl -fsSLO https://github.com/arduino/ctags/releases/download/5.8-arduino11/ctags-5.8-arduino11-x86_64-pc-linux-gnu.tar.bz2
+  mkdir -p ~/.arduino15/packages/builtin/tools/ctags/5.8-arduino11
+  tar xjf ctags-*.tar.bz2 -C ~/.arduino15/packages/builtin/tools/ctags/5.8-arduino11
+  # note: the archive is flat (just the binary) — no --strip-components
+  ```
+
+  The `serial-discovery`/`mdns-discovery` warnings that remain are harmless:
+  they only power `board list` auto-detection, and `upload -p /dev/ttyUSB0`
+  names the port explicitly.
+- **Serial port permissions**: the device shows up as `/dev/ttyUSB0` owned by
+  `root:dialout`. Either `sudo usermod -aG dialout $USER` (permanent, needs
+  re-login) or `sudo chmod a+rw /dev/ttyUSB0` (until re-plug).
+- **Serial monitor without the IDE** (`arduino-cli monitor` needs another
+  builtin tool — same 403): plain termios does the job:
+
+  ```bash
+  stty -F /dev/ttyUSB0 9600 raw -echo && cat /dev/ttyUSB0
+  ```
+
+### 9.2 Debugging a 401 from the device (what actually happened)
+
+The first flash got `Response: 401, {"error":"unauthorized"}` — a useful
+failure, because a JSON error from Flask proves WiFi, NTP, TLS and routing all
+work; only the credential is wrong. The layer-by-layer isolation that found it:
+
+1. **Same token, different client.** `curl` from the workstation with the
+   token out of `config.h` → also 401. So the firmware is innocent; the
+   *value* is wrong.
+2. **Is the server checking what we think?** Env vars freeze when a container
+   is *created*, not when `.env` changes — a stale container is the classic
+   trap. Compare without exposing secrets, by hash:
+
+   ```bash
+   # [vps]
+   docker compose exec api printenv SENSOR_TOKEN | tr -d '\n' | sha256sum
+   grep -oP '^SENSOR_TOKEN=\K.*' .env        | tr -d '\n' | sha256sum
+   # differ → docker compose up -d --force-recreate api
+   ```
+
+3. **Is the code broken?** Ran the exact prod image from GHCR locally with a
+   known token: 401 without it, auth passes with it. Code cleared.
+4. **What's left must be the answer**: the token pasted into `config.h` was a
+   *different* (valid-looking, 64-hex) token — a manual-copy casualty. Fix
+   that removes the human from the loop:
+
+   ```bash
+   # [workstation]
+   ssh deploy@<vps> 'grep -oP "^SENSOR_TOKEN=\K.*" /opt/weather-station/.env' \
+     | xargs -I{} sed -i 's|sensorToken = ".*"|sensorToken = "{}"|' esp32/config.h
+   ```
+
+Takeaways: an error *message* is information (401-in-JSON ≠ TLS failure);
+compare secrets by hash, never by eyeball; when two ends must share a secret,
+script the transfer.
 
 ## 10. Backups (phase 4)
 
