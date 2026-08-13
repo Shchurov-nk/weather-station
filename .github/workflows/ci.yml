@@ -71,8 +71,18 @@ jobs:
         run: docker compose logs db
 
   # The Dockerfile is a deploy artifact; catch uv.lock drift (--frozen) early.
+  # PRs only build; pushes to main also publish to GHCR for the VPS to pull.
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/shchurov-nk/weather-station-api
     steps:
       - uses: actions/checkout@v7
-      - run: docker build ./api
+      - run: docker build -t "$IMAGE:latest" -t "$IMAGE:sha-${GITHUB_SHA::7}" ./api
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push --all-tags "$IMAGE"

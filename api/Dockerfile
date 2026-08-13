@@ -1,5 +1,8 @@
 FROM python:3.13-slim
 
+# Ties the GHCR package to this repo on GitHub.
+LABEL org.opencontainers.image.source=https://github.com/Shchurov-nk/weather-station
+
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
 
 WORKDIR /app
