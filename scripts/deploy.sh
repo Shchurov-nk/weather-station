@@ -17,6 +17,11 @@ docker compose pull api dashboard
 docker compose up -d
 docker compose ps
 
+# The Caddyfile is a bind mount: `up -d` won't recreate caddy when only the
+# file's content changed, and caddy reads it once at startup. Graceful and a
+# no-op when the config is unchanged.
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+
 # Smoke test through the public hostname, the same path a browser takes.
 # Retried: `up -d` returns as soon as the container starts, a second or two
 # before uvicorn accepts connections.
