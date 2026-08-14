@@ -16,3 +16,11 @@ CREATE TABLE sensor_readings (
 -- Every query walks the time axis (ORDER BY reading_time DESC LIMIT,
 -- dashboard range scans), so this is the one index we need.
 CREATE INDEX sensor_readings_time_idx ON sensor_readings (reading_time DESC);
+
+-- Read-only role for the dashboard: it can never INSERT/UPDATE/DELETE.
+-- Plain .sql can't read env vars, so the password here is a fixed local
+-- one; keep READER_PASSWORD=reader in the local .env to match. On the VPS
+-- this file never re-runs (volume already initialized) — create the role
+-- by hand with a real password: see docs/vps-runbook.md.
+CREATE ROLE ws_reader LOGIN PASSWORD 'reader';
+GRANT SELECT ON sensor_readings TO ws_reader;

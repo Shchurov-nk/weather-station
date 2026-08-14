@@ -1,0 +1,27 @@
+[project]
+name = "weather-dashboard"
+version = "0.1.0"
+description = "Streamlit dashboard over the sensor_readings table"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=2",
+    "plotly>=6",
+    "psycopg[binary]>=3.2",
+    "streamlit>=1.49",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+]
+
+[tool.uv]
+# Flat module, not an installable package: uv manages deps only.
+package = false
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+# Import sorting (isort) is not in ruff's default select.
+extend-select = ["I"]
