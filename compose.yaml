@@ -1,10 +1,20 @@
 # The whole station as one stack. Only caddy publishes ports; api and db
 # talk over the internal compose network. Each service gets an explicit
 # environment: list (least privilege) instead of a shared env_file.
+
+# Docker's json-file driver keeps logs forever by default; on a small disk
+# that is a slow-motion outage (full disk stops Postgres). 30 MB per service.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    logging: *logging
     ports:
       - "80:80"
       - "443:443"
@@ -26,6 +36,7 @@ services:
     image: ghcr.io/shchurov-nk/weather-station-api:${API_TAG:-latest}
     build: ./api
     restart: unless-stopped
+    logging: *logging
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       SENSOR_TOKEN: ${SENSOR_TOKEN}
@@ -38,6 +49,7 @@ services:
   db:
     image: postgres:17
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
