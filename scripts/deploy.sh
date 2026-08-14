@@ -10,6 +10,10 @@ cd "$(dirname "$0")/.."   # repo root, where compose.yaml lives
 # Only our images: postgres/caddy upgrades stay deliberate, not a deploy side effect.
 docker compose pull api dashboard
 
+# The dashboard's read-only db role. Idempotent; needs db up, and on any
+# deploy after the first the stack is already running.
+./scripts/ensure_reader_role.sh
+
 docker compose up -d
 docker compose ps
 

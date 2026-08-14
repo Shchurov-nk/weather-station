@@ -443,27 +443,25 @@ versions (17 → 18), whose data volumes are not compatible.
 
 ## 11. Dashboard (phase 5)
 
-The dashboard container connects as the read-only role `ws_reader`.
-`db/init.sql` creates it only on a fresh data volume, so on the VPS (already
-initialized) create it by hand **before** merging the dashboard to main —
-the role is harmless on its own:
+The dashboard container connects as the read-only role `ws_reader`. The role
+is managed by `scripts/ensure_reader_role.sh`, which every deploy runs
+(idempotent: creates the role if missing, resets its password to
+`READER_PASSWORD`, re-grants SELECT). *Why a script:* `db/init.sql` runs only
+on a fresh data volume, and the VPS volume predates the role.
+
+**The one manual step** — the secret can't ship in git. Before merging the
+dashboard to main, add to `/opt/weather-station/.env` (see `.env.example`):
 
 ```bash
 # [vps]
-cd /opt/weather-station
-docker compose exec db psql -U weather -d weather \
-    -c "CREATE ROLE ws_reader LOGIN PASSWORD '<generated password>';" \
-    -c "GRANT SELECT ON sensor_readings TO ws_reader;"
-```
-
-Then add to `/opt/weather-station/.env` (see `.env.example`):
-
-```bash
-# [vps]
-READER_PASSWORD=<the same generated password>
+READER_PASSWORD=<openssl rand -hex 16>
 DASHBOARD_TZ=Europe/Moscow
 DASHBOARD_TAG=
 ```
+
+Everything else is automatic: the next deploy creates the role, pulls the
+dashboard image and starts it. (Forgot the .env step? The deploy fails fast:
+ensure_reader_role.sh exits 1 before anything restarts.)
 
 After the deploy, `https://<domain>/` serves the dashboard; the api keeps
 `/sensor` and `/table`. Smoke check: `curl -fs https://<domain>/_stcore/health`
