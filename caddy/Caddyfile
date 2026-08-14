@@ -1,6 +1,13 @@
-# One config for both worlds: DOMAIN=localhost -> Caddy signs with its
-# internal CA (curl -k locally); DOMAIN=your.domain on the VPS -> Caddy
-# obtains and renews Let's Encrypt certificates automatically.
 {$DOMAIN} {
-	reverse_proxy api:8000
+	# The api keeps its two routes; everything else (including websockets,
+	# which reverse_proxy upgrades automatically) goes to the dashboard.
+	handle /sensor* {
+		reverse_proxy api:8000
+	}
+	handle /table {
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy dashboard:8501
+	}
 }

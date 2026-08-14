@@ -28,6 +28,7 @@ services:
       - caddy_config:/config
     depends_on:
       - api
+      - dashboard
 
   api:
     # CI builds and pushes this image; the VPS only pulls it (scripts/deploy.sh),
@@ -44,6 +45,20 @@ services:
       db:
         # Orders startup only; if db restarts later, the api reconnects
         # on the next request (fresh connection per request).
+        condition: service_healthy
+
+  dashboard:
+    # Same pull-vs-build split as the api; DASHBOARD_TAG pins a rollback tag.
+    image: ghcr.io/shchurov-nk/weather-station-dashboard:${DASHBOARD_TAG:-latest}
+    build: ./dashboard
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      # ws_reader can only SELECT: the dashboard never writes.
+      DATABASE_URL: postgresql://ws_reader:${READER_PASSWORD}@db:5432/${POSTGRES_DB}
+      DASHBOARD_TZ: ${DASHBOARD_TZ}
+    depends_on:
+      db:
         condition: service_healthy
 
   db:
