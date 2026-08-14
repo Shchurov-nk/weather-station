@@ -440,3 +440,31 @@ docker stop restore-test
 
 Bonus: this same dump/restore pair is the upgrade path between Postgres major
 versions (17 → 18), whose data volumes are not compatible.
+
+## 11. Dashboard (phase 5)
+
+The dashboard container connects as the read-only role `ws_reader`.
+`db/init.sql` creates it only on a fresh data volume, so on the VPS (already
+initialized) create it by hand **before** merging the dashboard to main —
+the role is harmless on its own:
+
+```bash
+# [vps]
+cd /opt/weather-station
+docker compose exec db psql -U weather -d weather \
+    -c "CREATE ROLE ws_reader LOGIN PASSWORD '<generated password>';" \
+    -c "GRANT SELECT ON sensor_readings TO ws_reader;"
+```
+
+Then add to `/opt/weather-station/.env` (see `.env.example`):
+
+```bash
+# [vps]
+READER_PASSWORD=<the same generated password>
+DASHBOARD_TZ=Europe/Moscow
+DASHBOARD_TAG=
+```
+
+After the deploy, `https://<domain>/` serves the dashboard; the api keeps
+`/sensor` and `/table`. Smoke check: `curl -fs https://<domain>/_stcore/health`
+prints `ok`. Roll back the same way as the api: pin `DASHBOARD_TAG=sha-<short>`.

@@ -7,8 +7,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."   # repo root, where compose.yaml lives
 
-# Only api: postgres/caddy upgrades stay deliberate, not a deploy side effect.
-docker compose pull api
+# Only our images: postgres/caddy upgrades stay deliberate, not a deploy side effect.
+docker compose pull api dashboard
 
 docker compose up -d
 docker compose ps
@@ -19,15 +19,16 @@ docker compose ps
 DOMAIN=$(grep -E '^DOMAIN=' .env | cut -d= -f2-)
 for _ in $(seq 30); do
     # No -S: an early 502 is expected, only the final verdict is worth printing.
-    if curl -fs --max-time 5 "https://${DOMAIN}/table" > /dev/null; then
+    if curl -fs --max-time 5 "https://${DOMAIN}/table" > /dev/null \
+        && curl -fs --max-time 5 "https://${DOMAIN}/_stcore/health" > /dev/null; then
         echo "smoke OK"
-        # Old api image layers add up fast on a small disk.
+        # Old image layers add up fast on a small disk.
         docker image prune -f
         exit 0
     fi
     sleep 1
 done
 
-echo "smoke FAILED: https://${DOMAIN}/table unreachable after 30s" >&2
-docker compose logs --tail 50 api
+echo "smoke FAILED: /table or dashboard /_stcore/health unreachable after 30s" >&2
+docker compose logs --tail 50 api dashboard
 exit 1

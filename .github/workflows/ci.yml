@@ -22,18 +22,37 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pytest -q
 
+  # The dashboard has nothing to unit-test yet (SQL + plotly glue),
+  # so it only gets the lint half of the api's test job.
+  lint-dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: dashboard/uv.lock
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+
   # The Dockerfile is a deploy artifact; catch uv.lock drift (--frozen) early.
   # PRs only build; pushes to main also publish to GHCR for the VPS to pull.
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, dashboard]
     permissions:
       contents: read
       packages: write
     env:
-      IMAGE: ghcr.io/shchurov-nk/weather-station-api
+      IMAGE: ghcr.io/shchurov-nk/weather-station-${{ matrix.service }}
     steps:
       - uses: actions/checkout@v7
-      - run: docker build -t "$IMAGE:latest" -t "$IMAGE:sha-${GITHUB_SHA::7}" ./api
+      - run: docker build -t "$IMAGE:latest" -t "$IMAGE:sha-${GITHUB_SHA::7}" ./${{ matrix.service }}
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -44,7 +63,7 @@ jobs:
   # `compose up` is worse than waiting.
   deploy:
     runs-on: ubuntu-latest
-    needs: [test, build]
+    needs: [test, lint-dashboard, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     concurrency:
       group: deploy-production
