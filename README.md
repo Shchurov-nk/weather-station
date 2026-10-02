@@ -55,12 +55,33 @@ Server deployment (hardening, domain, backups): [docs/vps-runbook.md](docs/vps-r
 
 ## Development
 
+Nothing deploys until a push to `main` (CI's `deploy` job), so work on a
+branch and iterate locally.
+
+API:
+
 ```bash
 cd api
 uv sync            # exact versions from uv.lock
 uv run pytest      # unit tests (no database needed)
 uv run ruff check
 ```
+
+Dashboard — run streamlit natively with hot-reload (save `app.py`, the page
+reruns) instead of rebuilding the container on every edit:
+
+```bash
+scripts/dev_dashboard.sh prod     # real, live data: read-only ssh tunnel to the VPS db (ws_reader)
+scripts/dev_dashboard.sh local    # local compose db; needs compose.override.yaml (gitignored) with
+                                  #   services: {db: {ports: ["127.0.0.1:5432:5432"]}}
+# -> http://localhost:8501
+cd dashboard && uv run ruff check # what CI's lint-dashboard job runs
+```
+
+`scripts/seed_fake_data.sql` fills a local db with 12 h of synthetic
+readings when the real ones are stale. To see the change in the production
+image before merging: `docker compose up -d --build dashboard`, then
+`https://localhost/`.
 
 ## Firmware
 

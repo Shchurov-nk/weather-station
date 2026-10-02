@@ -13,3 +13,6 @@ backups/
 
 # platformio (phase 6)
 .pio/
+
+# local-only compose tweaks (db port for host-side streamlit)
+compose.override.yaml
