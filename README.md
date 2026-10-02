@@ -2,8 +2,8 @@
 
 [![ci](https://github.com/Shchurov-nk/weather-station/actions/workflows/ci.yml/badge.svg)](https://github.com/Shchurov-nk/weather-station/actions/workflows/ci.yml)
 
-ESP32 + BME280 posts temperature, humidity and pressure over HTTPS once a
-minute; a Flask API validates and stores readings in Postgres. Everything
+ESP32 + BME280 posts temperature, humidity and pressure over HTTPS every 6
+seconds; a Flask API validates and stores readings in Postgres. Everything
 server-side runs as one `docker compose` stack behind Caddy and is
 reproducible from a clean `git clone`.
 
