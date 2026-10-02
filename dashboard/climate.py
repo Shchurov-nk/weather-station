@@ -2,8 +2,6 @@
 the phase plot (where the room spends its time, plus the recent path)
 and the per-quantity distributions."""
 
-import math
-
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -33,16 +31,6 @@ def _hours_label(h: float) -> str:
     return f"{h:.1f} h" if h >= 1 else f"{h * 60:.0f} min"
 
 
-def _hour_ticks(lo: float, hi: float) -> list[float]:
-    # Colorbar ticks in hours on the log10 scale: decades when the range
-    # spans several, 1-2-5 steps when it is narrow, and the ends themselves
-    # when even that leaves no tick (a single bin).
-    mults = (1,) if hi - lo >= 2 else (1, 2, 5)
-    vals = [m * 10.0**k for k in range(math.floor(lo), math.ceil(hi) + 1) for m in mults]
-    ticks = [v for v in vals if lo - 1e-9 <= math.log10(v) <= hi + 1e-9]
-    return ticks or sorted({float(f"{10**lo:.2g}"), float(f"{10**hi:.2g}")})
-
-
 def _occupancy(bins: pd.DataFrame) -> go.Heatmap:
     # Integer bin indices, so the full grid is exact whatever the float
     # edges round to; cells never visited stay NaN (blank, no hover).
@@ -54,10 +42,6 @@ def _occupancy(bins: pd.DataFrame) -> go.Heatmap:
         .reindex(index=np.arange(hi.min(), hi.max() + 1), columns=np.arange(ti.min(), ti.max() + 1))
     )
     hours = grid.to_numpy()
-    # Occupancy is heavily skewed (most time in a few cells): log10 keeps
-    # the rarely visited cells visible.
-    z = np.log10(hours)
-    ticks = _hour_ticks(np.nanmin(z), np.nanmax(z))
     # Hover shows the cell's range, matching the distribution bars.
     text = [
         [
@@ -76,23 +60,19 @@ def _occupancy(bins: pd.DataFrame) -> go.Heatmap:
         dx=T_STEP,
         y0=(hi.min() + 0.5) * H_STEP,
         dy=H_STEP,
-        z=z,
+        z=hours,
         text=text,
         hoverongaps=False,
         hovertemplate="%{text}<extra></extra>",
         colorscale=OCCUPANCY_SCALE,
-        colorbar={
-            "title": {"text": "time"},
-            "tickvals": [math.log10(v) for v in ticks],
-            "ticktext": [f"{v:g} h" for v in ticks],
-        },
+        colorbar={"title": {"text": "time"}, "ticksuffix": " h"},
     )
 
 
 def phase_figure(bins: pd.DataFrame, trail: pd.DataFrame, cur: Latest) -> go.Figure:
     """Humidity vs temperature: 14-day occupancy heatmap, the last-12h
     path fading with age, and the current reading on top."""
-    bins = bins[bins["hours"] > 0]  # zero-length cells (duplicate timestamps) break log10
+    bins = bins[bins["hours"] > 0]  # zero-length cells (duplicate timestamps) stay blank, like unvisited ones
     fig = go.Figure()
     fig.update_layout(
         # Short: a longer title runs under the modebar in a half-width column;
