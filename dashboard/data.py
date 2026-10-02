@@ -69,7 +69,8 @@ def load_daily() -> tuple[pd.DataFrame, datetime]:
         now = conn.execute("SELECT now() AT TIME ZONE %s", (DASHBOARD_TZ,)).fetchone()[0]
         rows = conn.execute(DAILY_SQL, {"tz": DASHBOARD_TZ}).fetchall()
     cols = ["minute", "day_offset", "hour", "temperature", "humidity"]
-    return pd.DataFrame(rows, columns=cols), now
+    # Typed even when empty (three silent days), so trail() can resample it.
+    return pd.DataFrame(rows, columns=cols).astype({"minute": "datetime64[us]"}), now
 
 
 def trail(daily: pd.DataFrame, now: datetime, hours: int = 12) -> pd.DataFrame:
@@ -88,17 +89,18 @@ def trail(daily: pd.DataFrame, now: datetime, hours: int = 12) -> pd.DataFrame:
 BINS_SQL = """
     WITH r AS (
         SELECT temperature, humidity,
-               least(extract(epoch FROM lead(reading_time) OVER (ORDER BY reading_time)
-                                        - reading_time)::float8,
-                     %(cap)s) AS sec
+               extract(epoch FROM lead(reading_time) OVER (ORDER BY reading_time)
+                                  - reading_time)::float8 AS gap
         FROM sensor_readings
         WHERE reading_time > now() - interval '14 days'
     )
     SELECT floor(temperature / %(tstep)s) * %(tstep)s AS t_bin,
            floor(humidity / %(hstep)s) * %(hstep)s    AS h_bin,
-           sum(sec) / 3600                              AS hours
+           sum(least(gap, %(cap)s)) / 3600              AS hours
     FROM r
-    WHERE sec IS NOT NULL
+    -- the newest reading has no successor yet: no duration to credit
+    -- (and least() would turn its NULL into a full cap)
+    WHERE gap IS NOT NULL
     GROUP BY 1, 2
 """
 

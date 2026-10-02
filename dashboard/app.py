@@ -33,9 +33,6 @@ daily, now = load_daily()
 st.plotly_chart(daily_figure(daily, now))
 
 bins = load_bins()
-# trail() can't resample a zero-row frame (its columns aren't datetime yet),
-# which is what three silent days give.
-recent = trail(daily, now) if len(daily) else daily[["minute", "temperature", "humidity"]]
 phase_col, dist_col = st.columns(2)
-phase_col.plotly_chart(phase_figure(bins, recent, cur))
+phase_col.plotly_chart(phase_figure(bins, trail(daily, now), cur))
 dist_col.plotly_chart(distribution_figure(bins, cur))

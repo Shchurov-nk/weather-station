@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 from config import H_COLOR, T_COLOR
 
 # Same hue per quantity, older days fade: (day_offset, label, opacity, width).
-DAYS = [(0, "Today", 1.0, 2), (1, "Yesterday", 0.45, 1.5), (2, "2 days ago", 0.2, 1.5)]
+DAYS = [(0, "Today", 1.0, 2), (1, "Yesterday", 0.5, 1.5), (2, "2 days ago", 0.25, 1.5)]
 ROWS = [(1, "temperature", "°C", T_COLOR), (2, "humidity", "%", H_COLOR)]
 # Longer than this without a 1-min average and the line breaks. Not every
 # missing minute: a flaky sensor reporting every couple of minutes should
