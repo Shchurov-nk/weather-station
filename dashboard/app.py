@@ -21,7 +21,7 @@ age = datetime.now(UTC) - cur.reading_time
 # zoneinfo reads the image's system tzdata (python:3.13-slim ships it).
 local = cur.reading_time.astimezone(ZoneInfo(DASHBOARD_TZ))
 time_col, t_col, h_col = st.columns(3)
-fmt = "%H:%M:%S" if age < timedelta(days=1) else "%b %d, %H:%M:%S"
+fmt = "%H:%M:%S" if local.date() == datetime.now(local.tzinfo).date() else "%b %d, %H:%M:%S"
 time_col.metric("Last reading", local.strftime(fmt))
 time_col.caption(f"{int(age.total_seconds())} s ago")
 t_col.metric("Temperature", f"{cur.temperature:.1f} °C")
