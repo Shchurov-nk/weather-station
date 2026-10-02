@@ -1,6 +1,6 @@
 #cloud-config
 # Provisioning for a fresh Ubuntu 24.04 VPS — the automated equivalent of
-# docs/vps-runbook.md §1–5 (user, SSH hardening, firewall, unattended
+# docs/vps-runbook.md §1–5.1 (user, SSH hardening, firewall, unattended
 # upgrades, swap, Docker). Paste it into the provider's "user data" field
 # when CREATING the machine; it runs once, on first boot, before your first
 # SSH login. It does not apply to an already-running server — for that,
@@ -53,6 +53,20 @@ write_files:
       APT::Periodic::Update-Package-Lists "1";
       APT::Periodic::Unattended-Upgrade "1";
 
+  # Docker waits for NTP: the VPS boots with a wrong clock, and readings
+  # stamped with the db's now() in that window would be bogus (runbook §5.1).
+  # The wait is capped, so an unreachable NTP delays Docker, never blocks it.
+  - path: /etc/systemd/system/docker.service.d/wait-time-sync.conf
+    permissions: "0644"
+    content: |
+      [Unit]
+      After=time-sync.target
+  - path: /etc/systemd/system/systemd-time-wait-sync.service.d/timeout.conf
+    permissions: "0644"
+    content: |
+      [Service]
+      TimeoutStartSec=2min
+
 package_update: true
 package_upgrade: true
 
@@ -87,6 +101,8 @@ runcmd:
   # Membership in `docker` is equivalent to root on this box — which is why
   # hardening above comes first. The group only exists after the install.
   - [usermod, -aG, docker, deploy]
+  # Pairs with the docker.service drop-in in write_files (runbook §5.1).
+  - [systemctl, enable, systemd-time-wait-sync.service]
 
   # --- application directory, left empty for runbook §6 ---
   - [mkdir, -p, /opt/weather-station]

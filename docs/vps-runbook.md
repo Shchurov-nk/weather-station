@@ -113,6 +113,39 @@ sudo usermod -aG docker deploy   # membership in `docker` group == root on this 
 exit                             # that's why hardening came first. Re-login to apply.
 ```
 
+### 5.1 Start Docker only once the clock is synced
+
+*Why:* this VPS boots with a wrong clock (on 2026-10-02 it came up as
+Nov 22) and NTP fixes it a minute later. `reading_time` defaults to the
+db's `now()`, so readings posted in that minute would get bogus timestamps.
+`systemd-time-wait-sync` holds `time-sync.target` until timesyncd has synced;
+its stock timeout is infinite, so it is capped: with NTP unreachable Docker
+starts after 2 min anyway rather than never.
+
+```bash
+# [vps]
+sudo mkdir -p /etc/systemd/system/docker.service.d /etc/systemd/system/systemd-time-wait-sync.service.d
+printf '[Unit]\nAfter=time-sync.target\n' \
+  | sudo tee /etc/systemd/system/docker.service.d/wait-time-sync.conf >/dev/null
+printf '[Service]\nTimeoutStartSec=2min\n' \
+  | sudo tee /etc/systemd/system/systemd-time-wait-sync.service.d/timeout.conf >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now systemd-time-wait-sync.service
+systemctl show docker -p After | grep -o time-sync.target   # -> time-sync.target
+```
+
+Takes effect on the next boot; the running containers are not touched.
+The wait relies on timesyncd and is skipped inside containers, so check
+both hold (on this VPS: `microsoft`, i.e. a Hyper-V VM, and `active`):
+
+```bash
+# [vps]
+systemd-detect-virt; systemctl is-active systemd-timesyncd
+# after the next reboot: active (exited), and docker started after the sync
+systemctl status systemd-time-wait-sync --no-pager | head -3
+systemd-analyze critical-chain docker.service
+```
+
 ## 6. Deploy the stack
 
 ```bash
