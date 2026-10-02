@@ -79,9 +79,9 @@ cd dashboard && uv run ruff check # what CI's lint-dashboard job runs
 ```
 
 `scripts/seed_fake_data.sql` replaces the last 15 days of a local db with 14
-days of synthetic readings (incl. a 1 s burst and a 6 h outage). To see the change in the production
-image before merging: `docker compose up -d --build dashboard`, then
-`https://localhost/`.
+days of synthetic readings (incl. a 1 s burst and a 6 h outage). To see the
+change in the production image before merging: `docker compose up -d --build
+dashboard`, then `https://localhost/`.
 
 ## Firmware
 
