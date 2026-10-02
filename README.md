@@ -92,6 +92,13 @@ address 0x76. TLS roots are pinned in `esp32/certs.h` (ISRG Root X1/X2 plus
 the next-gen Root YE/YR, valid to 2035–2045); certificate renewals need no
 firmware action.
 
+## Planned
+
+- Dashboard header auto-refresh: today it updates only on a page reload
+  ("N s ago" freezes while the page is open). Wrap just the header in
+  `@st.fragment(run_every=60)`; the charts stay as they are, so the zoom
+  isn't reset.
+
 ## History
 
 The learning write-ups that accompanied earlier iterations of this project
