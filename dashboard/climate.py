@@ -58,7 +58,17 @@ def _occupancy(bins: pd.DataFrame) -> go.Heatmap:
     # the rarely visited cells visible.
     z = np.log10(hours)
     ticks = _hour_ticks(np.nanmin(z), np.nanmax(z))
-    text = np.vectorize(lambda h: "" if np.isnan(h) else _hours_label(h))(hours)
+    # Hover shows the cell's range, matching the distribution bars.
+    text = [
+        [
+            ""
+            if np.isnan(hours[r, c])
+            else f"{t * T_STEP:g}–{(t + 1) * T_STEP:g} °C, {h * H_STEP:g}–{(h + 1) * H_STEP:g} %"
+            f"<br>{_hours_label(hours[r, c])}"
+            for c, t in enumerate(grid.columns)
+        ]
+        for r, h in enumerate(grid.index)
+    ]
     # x0/dx rather than x/y arrays: with a single row or column plotly
     # can't infer the cell size from the coordinates.
     return go.Heatmap(
@@ -69,7 +79,7 @@ def _occupancy(bins: pd.DataFrame) -> go.Heatmap:
         z=z,
         text=text,
         hoverongaps=False,
-        hovertemplate="%{x:.2f} °C, %{y:.0f} %<br>%{text}<extra></extra>",
+        hovertemplate="%{text}<extra></extra>",
         colorscale=OCCUPANCY_SCALE,
         colorbar={
             "title": {"text": "time"},
@@ -85,9 +95,11 @@ def phase_figure(bins: pd.DataFrame, trail: pd.DataFrame, cur: Latest) -> go.Fig
     bins = bins[bins["hours"] > 0]  # zero-length cells (duplicate timestamps) break log10
     fig = go.Figure()
     fig.update_layout(
-        title="Temperature × humidity (14 days, last 12 h path)",
-        xaxis_title="°C",
-        yaxis_title="%",
+        # Short: a longer title runs under the modebar in a half-width column;
+        # the axis titles carry the quantity names instead.
+        title="Time spent, 14 d",
+        xaxis_title="temperature, °C",
+        yaxis_title="humidity, %",
         showlegend=False,
         margin=MARGIN,
     )
@@ -140,7 +152,7 @@ def _shares(bins: pd.DataFrame, col: str, step: float, unit: str, color: str) ->
         marker_color=color,
         opacity=0.6,
         customdata=np.column_stack([share.index, share.index + step]),
-        hovertemplate="%{customdata[0]:g}–%{customdata[1]:g} " + unit + ": %{y:.1f} %<extra></extra>",
+        hovertemplate="%{customdata[0]:~g}–%{customdata[1]:~g} " + unit + ": %{y:.1f} %<extra></extra>",
     )
 
 
@@ -148,9 +160,16 @@ def distribution_figure(bins: pd.DataFrame, cur: Latest) -> go.Figure:
     """Share of the last 14 days spent in each temperature / humidity bin,
     with the current values marked."""
     bins = bins[bins["hours"] > 0]  # an all-zero total would divide by zero
-    fig = make_subplots(rows=1, cols=2, subplot_titles=("Temperature", "Humidity"))
+    # Current values go in the subplot titles: a vline annotation makes
+    # plotly widen the x range to fit it, squeezing the bars in narrow columns.
+    # Kept short so the two titles don't run into each other there.
+    fig = make_subplots(
+        rows=1, cols=2, subplot_titles=(f"now {cur.temperature:.1f} °C", f"now {cur.humidity:.0f} %")
+    )
+    for title, color in zip(fig.layout.annotations, (T_COLOR, H_COLOR)):
+        title.font.color = color
     fig.update_layout(
-        title="Distribution, last 14 days (share of time)",
+        title="Share of time, 14 d",
         showlegend=False,
         bargap=0,
         margin=MARGIN,
@@ -160,21 +179,11 @@ def distribution_figure(bins: pd.DataFrame, cur: Latest) -> go.Figure:
 
     fig.add_trace(_shares(bins, "t_bin", T_STEP, "°C", T_COLOR), row=1, col=1)
     fig.add_trace(_shares(bins, "h_bin", H_STEP, "%", H_COLOR), row=1, col=2)
-    fig.update_xaxes(title_text="°C", row=1, col=1)
-    fig.update_xaxes(title_text="%", row=1, col=2)
+    fig.update_xaxes(title_text="temperature, °C", row=1, col=1)
+    fig.update_xaxes(title_text="humidity, %", row=1, col=2)
     fig.update_yaxes(title_text="share of time, %", row=1, col=1)
     # After the traces and with explicit row/col: otherwise add_vline
     # draws the line on every subplot.
-    for col, label, value, color in (
-        (1, f"{cur.temperature:.1f} °C", cur.temperature, T_COLOR),
-        (2, f"{cur.humidity:.0f} %", cur.humidity, H_COLOR),
-    ):
-        fig.add_vline(
-            x=value,
-            row=1,
-            col=col,
-            line={"color": color, "dash": "dash", "width": 2},
-            annotation_text=f"now {label}",
-            annotation_font_color=color,
-        )
+    for col, value, color in ((1, cur.temperature, T_COLOR), (2, cur.humidity, H_COLOR)):
+        fig.add_vline(x=value, row=1, col=col, line={"color": color, "dash": "dash", "width": 2})
     return fig
