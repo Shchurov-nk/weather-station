@@ -52,7 +52,13 @@ jobs:
       IMAGE: ghcr.io/shchurov-nk/weather-station-${{ matrix.service }}
     steps:
       - uses: actions/checkout@v7
-      - run: docker build -t "$IMAGE:latest" -t "$IMAGE:sha-${GITHUB_SHA::7}" ./${{ matrix.service }}
+      # Layers unchanged since the last published image (base, deps) are
+      # reused, keeping their digests, so the VPS pulls only what changed
+      # instead of every layer on every deploy. The inline cache metadata
+      # is what the next build's --cache-from reads.
+      - run: >
+          docker build --cache-from "$IMAGE:latest" --build-arg BUILDKIT_INLINE_CACHE=1
+          -t "$IMAGE:latest" -t "$IMAGE:sha-${GITHUB_SHA::7}" ./${{ matrix.service }}
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin

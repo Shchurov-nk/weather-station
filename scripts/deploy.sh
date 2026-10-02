@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploys the current checkout on the VPS: pull the api image from GHCR and
+# Deploys the current checkout on the VPS: pull our images from GHCR and
 # restart what changed. CI runs this over ssh AFTER `git pull --ff-only` — the
 # pull stays outside because bash reads this file as it executes, so a script
 # that rewrites itself mid-run does something unpredictable. Safe by hand too.
@@ -8,7 +8,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."   # repo root, where compose.yaml lives
 
 # Only our images: postgres/caddy upgrades stay deliberate, not a deploy side effect.
-docker compose pull api dashboard
+# One at a time: compose pulls in parallel, and two big layer extractions at
+# once next to the running stack hung this ~1 GB box for good (2026-10-02).
+for svc in api dashboard; do
+    docker compose pull "$svc"
+done
 
 # The dashboard's read-only db role. Idempotent; needs db up, and on any
 # deploy after the first the stack is already running.
