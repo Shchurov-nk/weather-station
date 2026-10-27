@@ -52,6 +52,10 @@ Server deployment (hardening, domain, backups): [docs/vps-runbook.md](docs/vps-r
   with `down -v` (losing the data).
 - `reading_time` is stored as `timestamptz` (UTC); convert to local time when
   displaying.
+- Dashboard visits are logged by Caddy as JSON lines (`/sensor` and `/table`
+  are skipped): `docker compose exec caddy cat /data/access.log`. A page load
+  is `GET /`; the `/_stcore/stream` websocket line is written when the tab
+  closes and its `duration` is how long the page stayed open.
 
 ## Development
 

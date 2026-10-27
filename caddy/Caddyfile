@@ -1,10 +1,23 @@
 {$DOMAIN} {
+	# Access log of dashboard visits. The file sits in the caddy_data volume
+	# (no compose change); rolling caps it at ~60 MB.
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+
 	# The api keeps its two routes; everything else (including websockets,
 	# which reverse_proxy upgrades automatically) goes to the dashboard.
 	handle /sensor* {
+		# The ESP32 posts every few seconds: noise, not visits.
+		log_skip
 		reverse_proxy api:8000
 	}
 	handle /table {
+		log_skip
 		reverse_proxy api:8000
 	}
 	handle {
