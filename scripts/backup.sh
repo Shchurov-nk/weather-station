@@ -1,5 +1,5 @@
 #!/bin/bash
-# Nightly Postgres dump. Cron on the VPS (as deploy):
+# Nightly Postgres dump and access-log copy. Cron on the VPS (as deploy):
 #   10 2 * * * /opt/weather-station/scripts/backup.sh >> /home/deploy/backup.log 2>&1
 # The off-VPS copy is PULLED from home — see docs/vps-runbook.md §10.
 set -euo pipefail
@@ -13,6 +13,12 @@ docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -
 
 # Keep two weeks locally; older copies live off-VPS.
 find backups/ -name 'ws_*.dump' -mtime +14 -delete
+
+# Caddy access log (dashboard visits): the live file plus rolled .gz files.
+# Never pruned here, so the history survives Caddy's own rotation.
+mkdir -p backups/access-log
+docker compose exec -T caddy sh -c 'cd /data && tar cf - access*.log*' \
+    | tar xf - -C backups/access-log
 
 # Dead man's switch: healthchecks.io alerts when this line stops arriving.
 # Uncomment after registering a check:

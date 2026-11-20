@@ -1,10 +1,13 @@
 {$DOMAIN} {
 	# Access log of dashboard visits. The file sits in the caddy_data volume
-	# (no compose change); rolling caps it at ~60 MB.
+	# (no compose change). The history is kept for years: Caddy's default
+	# roll_keep_for is 90 days, so it is set explicitly. Rolled files are
+	# gzipped; 100 of them cap the log at ~1 GB uncompressed.
 	log {
 		output file /data/access.log {
 			roll_size 10MiB
-			roll_keep 5
+			roll_keep 100
+			roll_keep_for 3650d
 		}
 		format json
 	}
